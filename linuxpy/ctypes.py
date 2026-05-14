@@ -21,7 +21,8 @@ u16 = ctypes.c_uint16
 u32 = ctypes.c_uint32
 u64 = ctypes.c_uint64
 
-
+cbyte = ctypes.c_byte
+cubyte = ctypes.c_ubyte
 cint = ctypes.c_int
 cuint = ctypes.c_uint
 clong = ctypes.c_long
@@ -41,6 +42,7 @@ fsfilcnt = culong
 
 cast = ctypes.cast
 sizeof = ctypes.sizeof
+csize = ctypes.c_size_t
 byref = ctypes.byref
 addressof = ctypes.addressof
 string_at = ctypes.string_at
@@ -55,6 +57,14 @@ POINTER = ctypes.POINTER
 create_string_buffer = ctypes.create_string_buffer
 cast = ctypes.cast
 memmove = ctypes.memmove
+
+# python 3.14
+if hasattr(ctypes, "memoryview_at"):
+    memoryview_at = ctypes.memoryview_at
+else:
+
+    def memoryview_at(ptr, size):
+        return memoryview((cubyte * size).from_address(ptr)).cast("B")
 
 
 def memcpy(dst, src):
