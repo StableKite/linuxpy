@@ -1773,7 +1773,10 @@ class VideoCapture(BufferManager):
         return self
 
     def __exit__(self, *exc):
-        self.close()
+        try:
+            self.close()
+        except ValueError:
+            pass
 
     def __iter__(self):
         yield from self.buffer
@@ -1817,6 +1820,8 @@ class VideoCapture(BufferManager):
         self.device.log.info("Video capture started!")
 
     def close(self):
+        if self.device.closed:
+            return
         if self.buffer:
             self.device.log.info("Closing video capture...")
             self.stream_off()
