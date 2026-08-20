@@ -33,12 +33,14 @@ Create a device object from an ID:
 
 ```python
 from linuxpy.video.device import Device
+
 camera = Device.from_id(10)
 ```
 
 from a filename:
 ```python
 from linuxpy.video.device import Device
+
 camera = Device("/dev/video10")
 ```
 
@@ -46,6 +48,7 @@ or from an existing file object:
 
 ```python
 from linuxpy.video.device import Device
+
 with open("/dev/video10", "rb+", buffering=0) as fd:
     camera = Device(fd)
 ```
@@ -80,7 +83,6 @@ with camera:
 Alternatively, you can manage calls `Device.open()`/`Device.close()` manually:
 
 ```python
-
 camera = Device.from_id(10)
 camera.open()
 try:

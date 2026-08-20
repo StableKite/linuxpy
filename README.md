@@ -76,8 +76,8 @@ abs = pad.absolute
 
 with pad:
     while True:
-	    print(f"X:{abs.x:>3} | Y:{abs.y:>3} | RX:{abs.rx:>3} | RY:{abs.ry:>3}", end="\r", flush=True)
-	    time.sleep(0.1)
+        print(f"X:{abs.x:>3} | Y:{abs.y:>3} | RX:{abs.rx:>3} | RY:{abs.ry:>3}", end="\r", flush=True)
+        time.sleep(0.1)
 ```
 
 Check the [Input user guide](https://tiagocoutinho.github.io/linuxpy/user_guide/input/) and
@@ -121,8 +121,9 @@ Check the [MIDI user guide](https://tiagocoutinho.github.io/linuxpy/user_guide/m
 
 ```python
 from linuxpy.thermal import find
+
 with find(type="x86_pkg_temp") as tz:
-    print(f"X86 temperature: {tz.temperature/1000:6.2f} C")
+    print(f"X86 temperature: {tz.temperature / 1000:6.2f} C")
 ```
 
 Check the [Thermal and cooling user guide](https://tiagocoutinho.github.io/linuxpy/user_guide/thermal/) and
