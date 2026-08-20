@@ -1984,7 +1984,9 @@ class MemorySource(ReentrantOpen):
         return self.write(data)
 
 
-class UserPtr(MemorySource):
+class BaseUserPtr(MemorySource):
+    Buffer = None
+
     def __init__(self, buffer_manager: BufferManager):
         super().__init__(buffer_manager, Memory.USERPTR)
         self.log = self.device.log.getChild("MemoryMap")
@@ -1995,16 +1997,38 @@ class UserPtr(MemorySource):
         size = self.format.size
         self.buffers = []
         for index in range(self.buffer_manager.size):
-            data = ctypes.create_string_buffer(size)
+            data = self.Buffer(size)
             self.buffers.append(data)
             buff = raw.v4l2_buffer()
             buff.index = index
             buff.type = self.buffer_manager.type
             buff.memory = self.source
-            buff.m.userptr = ctypes.addressof(data)
+            buff.m.userptr = data.address
             buff.length = size
             self.queue.enqueue(buff)
         self.log.info("Buffers reserved")
+
+
+class UserPtr(BaseUserPtr):
+    class Buffer:
+        def __init__(self, size):
+            self.data = ctypes.create_string_buffer(size)
+            self.address = ctypes.addressof(self.data)
+
+        def __getitem__(self, k):
+            return self.data[k]
+
+        def close(self):
+            self.data = None
+            self.address = None
+
+
+class OwnedSharedPtr(BaseUserPtr):
+    @staticmethod
+    def Buffer(size):
+        from linuxpy.shm import create
+
+        return create(size)
 
 
 class MemoryMap(MemorySource):

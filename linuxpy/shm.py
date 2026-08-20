@@ -83,15 +83,28 @@ shmdt.restype = ctypes.cint
 
 
 class SharedMemory:
-    def __init__(self, id, ptr, size):
+    def __init__(self, id, address, size):
         self.id = id
-        self.ptr = ptr
+        self.address = address
         self.size = size
-        self.mem = ctypes.memoryview_at(ptr, size)
+        self.data = ctypes.memoryview_at(address, size)
 
     def close(self):
-        if shmdt(self.ptr) != 0:
-            raise RuntimeError("Failed to detach ")
+        if self.address is None:
+            return
+        if shmdt(self.address) != 0:
+            raise RuntimeError("Failed to detach")
+        self.address = None
+        self.data = None
+
+    def __getitem__(self, k):
+        return self.data[k]
+
+    def __setitem__(self, k, v):
+        self.data[k] = v
+
+    def __getattr__(self, k):
+        return getattr(self.data, k)
 
 
 def create(size: int, flags=None) -> SharedMemory:
