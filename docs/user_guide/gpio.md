@@ -112,7 +112,6 @@ With keys:
 Example:
 
 ```python
-
 config = {
     "name": "myself",
     "lines": [5, {"line": 6, "direction": "output"}],
@@ -125,7 +124,7 @@ config = {
     "lines": {
         5: {},
         6: {"direction": "output"},
-    }
+    },
 }
 
 with find() as gpio:
@@ -145,10 +144,7 @@ Example:
 ```python
 from linuxpy.gpio.device import CLine
 
-config = {
-    "name": "myself",
-    "lines": [CLine(5), CLine(6, "output")]
-}
+config = {"name": "myself", "lines": [CLine(5), CLine(6, "output")]}
 
 with find() as gpio:
     with gpio.request(config) as lines:
@@ -263,7 +259,6 @@ with find() as gpio:
 A more complex reads also works:
 
 ```python
-
 with find() as gpio:
     with device.request([CLineIn(i) for i in range(16)]) as lines:
         # read lines 7, 5
@@ -280,7 +275,6 @@ with find() as gpio:
 The request object can be used as an infinite iterator to watch for line events:
 
 ```python
-
 with find() as gpio:
     with device.request([1, 4]) as lines:
         for event in lines:
@@ -290,9 +284,7 @@ with find() as gpio:
 Reading one event is easy:
 
 ```python
-
 event = next(iter(lines))
-
 ```
 
 ### asyncio
@@ -318,11 +310,9 @@ asyncio.run(main())
 Linuxpy GPIO API supports watching for line configuration events:
 
 ```python
-
 with find() as gpio:
     for event in gpio.info_stream([5, 10]):
         print(event)
-
 ```
 
 The example above will listen for configuration change, line request and line
@@ -332,7 +322,6 @@ If you need fine control you can manually register for line watch and then
 listen for events. So the above example can also be written as:
 
 ```python
-
 with find() as gpio:
     with gpio.watching([5, 10]):
         for event in gpio:
@@ -342,7 +331,6 @@ with find() as gpio:
 Or even:
 
 ```python
-
 with find() as gpio:
     gpio.watch_lines([5, 10])
     try:
@@ -350,7 +338,6 @@ with find() as gpio:
             print(event)
     finally:
         gpio.unwatch_lines([5, 10])
-
 ```
 
 ### asyncio

@@ -46,7 +46,7 @@ $ pip install linuxpy --group=dev
 
 ## Subsystems
 
-### GPIO
+### GPIO ⚡
 
 ```python
 from linuxpy.gpio import Device
@@ -65,7 +65,7 @@ with Device.from_id(0) as gpio:
 Check the [GPIO user guide](https://tiagocoutinho.github.io/linuxpy/user_guide/gpio/) and
 [GPIO reference](https://tiagocoutinho.github.io/linuxpy/api/gpio/) for more information.
 
-### Input
+### Input 🕹️
 
 ```python
 import time
@@ -76,14 +76,14 @@ abs = pad.absolute
 
 with pad:
     while True:
-	    print(f"X:{abs.x:>3} | Y:{abs.y:>3} | RX:{abs.rx:>3} | RY:{abs.ry:>3}", end="\r", flush=True)
-	    time.sleep(0.1)
+        print(f"X:{abs.x:>3} | Y:{abs.y:>3} | RX:{abs.rx:>3} | RY:{abs.ry:>3}", end="\r", flush=True)
+        time.sleep(0.1)
 ```
 
 Check the [Input user guide](https://tiagocoutinho.github.io/linuxpy/user_guide/input/) and
 [Input reference](https://tiagocoutinho.github.io/linuxpy/api/input/) for more information.
 
-### Led
+### Led 💡
 
 ```python
 from linuxpy.led import find
@@ -96,7 +96,7 @@ print(caps_lock.max_brightness)
 Check the [LED user guide](https://tiagocoutinho.github.io/linuxpy/user_guide/led/) and
 [LED reference](https://tiagocoutinho.github.io/linuxpy/api/led/) for more information.
 
-### MIDI Sequencer
+### MIDI Sequencer 🎹
 
 ```console
 $ python
@@ -117,18 +117,19 @@ $ python
 Check the [MIDI user guide](https://tiagocoutinho.github.io/linuxpy/user_guide/midi/) and
 [MIDI reference](https://tiagocoutinho.github.io/linuxpy/api/midi/) for more information.
 
-### Thermal and cooling
+### Thermal and cooling 🌡️
 
 ```python
 from linuxpy.thermal import find
+
 with find(type="x86_pkg_temp") as tz:
-    print(f"X86 temperature: {tz.temperature/1000:6.2f} C")
+    print(f"X86 temperature: {tz.temperature / 1000:6.2f} C")
 ```
 
 Check the [Thermal and cooling user guide](https://tiagocoutinho.github.io/linuxpy/user_guide/thermal/) and
 [Thermal and cooling reference](https://tiagocoutinho.github.io/linuxpy/api/thermal/) for more information.
 
-### Video
+### Video 🎥
 
 Video for Linux 2 (V4L2) python library
 
