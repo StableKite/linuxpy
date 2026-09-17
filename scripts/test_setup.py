@@ -10,7 +10,7 @@ RULES = f"""\
 KERNEL=="uinput", SUBSYSTEM=="misc" GROUP="{input_group}", MODE="0666"
 KERNEL=="event[0-9]*", SUBSYSTEM=="input" GROUP="{input_group}", MODE="0666"
 
-KERNEL=="uleds", GROUP="input", MODE="0664"
+KERNEL=="uleds", GROUP="{input_group}", MODE="0666"
 SUBSYSTEM=="leds", ACTION=="add", RUN+="/bin/chmod -R g=u,o=u /sys%p"
 SUBSYSTEM=="leds", ACTION=="change", ENV{{TRIGGER}}!="none", RUN+="/bin/chmod -R g=u,o=u /sys%p"
 

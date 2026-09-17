@@ -1875,6 +1875,7 @@ class CtrlType(enum.IntEnum):
     U16 = 257
     U32 = 258
     AREA = 262
+    RECT = 263
     HDR10_CLL_INFO = 272
     HDR10_MASTERING_DISPLAY = 273
     H264_SPS = 512
@@ -3318,6 +3319,7 @@ class v4l2_ext_control(Struct):
         ("p_s32", POINTER(cint)),
         ("p_s64", POINTER(clonglong)),
         ("p_area", POINTER(v4l2_area)),
+        ("p_rect", POINTER(v4l2_rect)),
         ("p_h264_sps", POINTER(v4l2_ctrl_h264_sps)),
         ("p_h264_pps", POINTER(v4l2_ctrl_h264_pps)),
         ("p_h264_scaling_matrix", POINTER(v4l2_ctrl_h264_scaling_matrix)),
