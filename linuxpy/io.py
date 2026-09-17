@@ -4,12 +4,12 @@
 # Copyright (c) 2023 Tiago Coutinho
 # Distributed under the GPLv3 license. See LICENSE for more info.
 
-import typing
 import functools
 import importlib
-import os
 import io
+import os
 import select
+import typing
 
 StrOrBytesPath: typing.TypeAlias = str | bytes | os.PathLike[str] | os.PathLike[bytes]
 
@@ -17,12 +17,12 @@ FileDescriptorOrPath: typing.TypeAlias = int | StrOrBytesPath
 
 
 def fopen(
-        path: StrOrBytesPath,
-        rw: bool = False,
-        binary: bool = True,
-        blocking: bool = False,
-        close_on_exec: bool = True
-    ) -> io.FileIO | io.TextIOWrapper:
+    path: StrOrBytesPath,
+    rw: bool = False,
+    binary: bool = True,
+    blocking: bool = False,
+    close_on_exec: bool = True,
+) -> io.FileIO | io.TextIOWrapper:
     def opener(path, flags):
         if not blocking:
             flags |= os.O_NONBLOCK

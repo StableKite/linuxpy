@@ -670,7 +670,9 @@ def _get_control_value(control: raw.v4l2_query_ext_ctrl, raw_control: raw.v4l2_e
         return data
 
 
-def get_controls_values(fd: int, controls: list[raw.v4l2_query_ext_ctrl], which=raw.ControlWhichValue.CUR_VAL, request_fd=0):
+def get_controls_values(
+    fd: int, controls: list[raw.v4l2_query_ext_ctrl], which=raw.ControlWhichValue.CUR_VAL, request_fd=0
+):
     n = len(controls)
     ctrls = raw.v4l2_ext_controls()
     ctrls.which = which
@@ -1764,11 +1766,8 @@ class Frame:
 
 class VideoCapture(BufferManager):
     def __init__(
-            self,
-            device: Device,
-            size: int = 2,
-            buffer_type: Optional["type[MemoryMap] | type[ReadSource]"] = None
-        ):
+        self, device: Device, size: int = 2, buffer_type: Optional["type[MemoryMap] | type[ReadSource]"] = None
+    ):
         super().__init__(device, BufferType.VIDEO_CAPTURE, size)
         self.buffer = None
         self._buffer_type = buffer_type
