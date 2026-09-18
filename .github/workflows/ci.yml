@@ -173,6 +173,295 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  glibc-package:
+    name: Package / glibc / ${{ matrix.arch }}
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.14t
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14t"
+
+      - name: Verify glibc runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          ldd --version 2>&1 | grep -Eqi 'GNU libc|GLIBC'
+
+      - name: Install build frontend
+        run: python -m pip install --upgrade build
+
+      - name: Build wheel from checkout
+        run: python -m build --wheel --outdir dist
+
+      - name: Verify and install glibc build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t wheels < <(
+            find dist -maxdepth 1 -type f -name '*.whl' -print
+          )
+
+          if [ "${#wheels[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one wheel, found ${#wheels[@]}."
+            exit 1
+          fi
+
+          expected="linuxpy-0.25.0+stablekite.2-py3-none-any.whl"
+          if [ "$(basename "${wheels[0]}")" != "$expected" ]; then
+            echo "::error::Unexpected wheel: ${wheels[0]}"
+            exit 1
+          fi
+
+          python -m pip install --force-reinstall --no-deps "${wheels[0]}"
+
+          cd "$RUNNER_TEMP"
+          python - <<'PY'
+          from importlib import metadata
+          from pathlib import Path
+          import compileall
+          import sysconfig
+          import linuxpy
+
+          expected = "0.25.0+stablekite.2"
+          installed = metadata.version("linuxpy")
+
+          if sysconfig.get_config_var("Py_GIL_DISABLED") != 1:
+              raise SystemExit("Expected free-threaded CPython 3.14t")
+          if installed != expected or linuxpy.__version__ != expected:
+              raise SystemExit(
+                  f"Unexpected installed version: metadata={installed!r}, "
+                  f"module={linuxpy.__version__!r}"
+              )
+
+          package_dir = Path(linuxpy.__file__).resolve().parent
+          if not compileall.compile_dir(package_dir, quiet=1):
+              raise SystemExit("compileall failed for installed linuxpy")
+
+          print("Installed linuxpy:", installed)
+          print("Package directory:", package_dir)
+          PY
+
+  windows-package:
+    name: Package / Windows x86_64
+    needs: validate
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.14t
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14t"
+
+      - name: Install build frontend
+        run: python -m pip install --upgrade build
+
+      - name: Build wheel and sdist from checkout
+        run: python -m build --wheel --sdist --outdir dist
+
+      - name: Verify Windows-built distributions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $wheels = @(Get-ChildItem -LiteralPath dist -Filter *.whl)
+          $sdists = @(Get-ChildItem -LiteralPath dist -Filter *.tar.gz)
+
+          if ($wheels.Count -ne 1) {
+            throw "Expected exactly one wheel, got $($wheels.Count)."
+          }
+          if ($sdists.Count -ne 1) {
+            throw "Expected exactly one sdist, got $($sdists.Count)."
+          }
+
+          $expectedWheel = "linuxpy-0.25.0+stablekite.2-py3-none-any.whl"
+          $expectedSdist = "linuxpy-0.25.0+stablekite.2.tar.gz"
+
+          if ($wheels[0].Name -ne $expectedWheel) {
+            throw "Unexpected wheel: $($wheels[0].Name)"
+          }
+          if ($sdists[0].Name -ne $expectedSdist) {
+            throw "Unexpected sdist: $($sdists[0].Name)"
+          }
+
+          python -c @'
+          from pathlib import Path
+          import tarfile
+          import zipfile
+
+          wheel = next(Path("dist").glob("*.whl"))
+          sdist = next(Path("dist").glob("*.tar.gz"))
+
+          with zipfile.ZipFile(wheel) as archive:
+              bad = archive.testzip()
+              if bad is not None:
+                  raise SystemExit(f"Corrupt wheel member: {bad}")
+              names = set(archive.namelist())
+              if "linuxpy/__init__.py" not in names:
+                  raise SystemExit("Wheel is missing linuxpy/__init__.py")
+              wheel_metadata_name = next(
+                  name for name in names if name.endswith(".dist-info/WHEEL")
+              )
+              wheel_metadata = archive.read(wheel_metadata_name).decode("utf-8")
+              if "Root-Is-Purelib: true" not in wheel_metadata:
+                  raise SystemExit("Wheel is not marked as pure Python")
+              if "Tag: py3-none-any" not in wheel_metadata:
+                  raise SystemExit("Wheel does not contain py3-none-any tag")
+
+          with tarfile.open(sdist, "r:gz") as archive:
+              names = archive.getnames()
+              if not any(name.endswith("/linuxpy/__init__.py") for name in names):
+                  raise SystemExit("sdist is missing linuxpy/__init__.py")
+          '@
+
+      - name: Rebuild wheel from sdist on Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $rebuilt = Join-Path $env:RUNNER_TEMP "linuxpy-sdist-wheel"
+          New-Item -ItemType Directory -Force -Path $rebuilt | Out-Null
+          $sdist = (Get-ChildItem -LiteralPath dist -Filter *.tar.gz -File).FullName
+          python -m pip wheel --no-deps --wheel-dir $rebuilt $sdist
+
+          $wheels = @(Get-ChildItem -LiteralPath $rebuilt -Filter *.whl -File)
+          if ($wheels.Count -ne 1) {
+            throw "Expected exactly one wheel rebuilt from sdist."
+          }
+          if ($wheels[0].Name -ne "linuxpy-0.25.0+stablekite.2-py3-none-any.whl") {
+            throw "Unexpected rebuilt wheel: $($wheels[0].Name)"
+          }
+
+      - name: Install Windows-built wheel outside checkout
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $wheel = (Get-ChildItem -LiteralPath dist -Filter *.whl -File).FullName
+          python -m pip install --force-reinstall --no-deps $wheel
+
+          Push-Location $env:RUNNER_TEMP
+          try {
+            python -c @'
+          from importlib import metadata
+          from pathlib import Path
+          import compileall
+          import importlib.util
+          import sysconfig
+          import linuxpy
+
+          expected = "0.25.0+stablekite.2"
+          installed = metadata.version("linuxpy")
+
+          if sysconfig.get_config_var("Py_GIL_DISABLED") != 1:
+              raise SystemExit("Expected free-threaded CPython 3.14t")
+          if installed != expected or linuxpy.__version__ != expected:
+              raise SystemExit(
+                  f"Unexpected installed version: metadata={installed!r}, "
+                  f"module={linuxpy.__version__!r}"
+              )
+
+          package_dir = Path(linuxpy.__file__).resolve().parent
+          if not compileall.compile_dir(package_dir, quiet=1):
+              raise SystemExit("compileall failed for installed linuxpy")
+
+          for module_name in ("linuxpy.io", "linuxpy.video", "linuxpy.gpio"):
+              if importlib.util.find_spec(module_name) is None:
+                  raise SystemExit(f"Installed package is missing {module_name}")
+
+          print("Installed linuxpy:", installed)
+          print("Package directory:", package_dir)
+          '@
+          }
+          finally {
+            Pop-Location
+          }
+
+  musl-package:
+    name: Package / musl / ${{ matrix.arch }}
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Build and install in Alpine 3.24
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            -v "$PWD:/src" \
+            -w /src \
+            alpine:3.24 sh -euxc '
+              apk add --no-cache ca-certificates curl
+
+              curl -LsSf https://astral.sh/uv/install.sh | sh
+              export PATH="/root/.local/bin:$PATH"
+              export UV_NO_PROGRESS=1
+
+              uv venv --python 3.14t /tmp/venv
+              uv pip install --python /tmp/venv/bin/python build
+
+              ldd /tmp/venv/bin/python 2>&1 | grep -qi musl
+              /tmp/venv/bin/python -c "import sysconfig; assert sysconfig.get_config_var(\"Py_GIL_DISABLED\") == 1"
+
+              rm -rf dist-musl
+              /tmp/venv/bin/python -m build --wheel --outdir dist-musl
+
+              set -- dist-musl/*.whl
+              if [ "$#" -ne 1 ]; then
+                echo "Expected exactly one musl-built wheel, got $#" >&2
+                exit 1
+              fi
+
+              if [ "$(basename "$1")" != "linuxpy-0.25.0+stablekite.2-py3-none-any.whl" ]; then
+                echo "Unexpected musl-built wheel: $1" >&2
+                exit 1
+              fi
+
+              uv pip install \
+                --python /tmp/venv/bin/python \
+                --force-reinstall \
+                --no-deps \
+                "$1"
+
+              cd /tmp
+              /tmp/venv/bin/python -c "from importlib import metadata; from pathlib import Path; import compileall, linuxpy, sysconfig; expected=\"0.25.0+stablekite.2\"; installed=metadata.version(\"linuxpy\"); assert sysconfig.get_config_var(\"Py_GIL_DISABLED\") == 1; assert installed == expected; assert linuxpy.__version__ == expected; package_dir=Path(linuxpy.__file__).resolve().parent; assert compileall.compile_dir(package_dir, quiet=1); print(\"Installed linuxpy:\", installed); print(\"Package directory:\", package_dir)"
+            '
+
   test:
     name: Test / ${{ matrix.arch }} / Python ${{ matrix.python-version }}
     needs: build
@@ -252,6 +541,9 @@ jobs:
     needs:
       - build
       - test
+      - glibc-package
+      - windows-package
+      - musl-package
 
     if: >-
       github.ref == 'refs/heads/main' &&
