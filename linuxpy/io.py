@@ -4,25 +4,20 @@
 # Copyright (c) 2023 Tiago Coutinho
 # Distributed under the GPLv3 license. See LICENSE for more info.
 
-import typing
 import functools
 import importlib
-import os
 import io
+import os
 import select
-
-StrOrBytesPath: typing.TypeAlias = str | bytes | os.PathLike[str] | os.PathLike[bytes]
-
-FileDescriptorOrPath: typing.TypeAlias = int | StrOrBytesPath
 
 
 def fopen(
-        path: StrOrBytesPath,
-        rw: bool = False,
-        binary: bool = True,
-        blocking: bool = False,
-        close_on_exec: bool = True
-    ) -> io.FileIO | io.TextIOWrapper:
+    path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+    rw: bool = False,
+    binary: bool = True,
+    blocking: bool = False,
+    close_on_exec: bool = True,
+) -> io.FileIO | io.TextIOWrapper:
     def opener(path, flags):
         if not blocking:
             flags |= os.O_NONBLOCK
@@ -69,7 +64,7 @@ class GeventModule:
 
 class GeventIO:
     @staticmethod
-    def open(path: FileDescriptorOrPath, rw: bool = False, blocking: bool = False):
+    def open(path: int | str | bytes | os.PathLike[str] | os.PathLike[bytes], rw: bool = False, blocking: bool = False):
         mode = "rb+" if rw else "rb"
         import gevent.fileobject
 
