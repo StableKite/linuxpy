@@ -7,14 +7,13 @@
 import collections.abc
 import os
 import pathlib
+import sys
 import typing
 
-if hasattr(typing, "Self"):  # 3.11+
-    Self = typing.Self
+if sys.version_info >= (3, 11):
+    from typing import Self as Self
 else:
-    import typing_extensions
-
-    Self = typing_extensions.Self
+    from typing_extensions import Self as Self
 
 if hasattr(collections.abc, "Buffer"):  # 3.12+
     Buffer = collections.abc.Buffer

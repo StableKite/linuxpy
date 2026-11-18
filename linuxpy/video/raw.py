@@ -11,6 +11,7 @@
 # Version: #1 SMP PREEMPT_DYNAMIC Debian 6.10.6-1 (2024-08-19)
 
 import enum
+from typing import TYPE_CHECKING
 
 from linuxpy.ctypes import (
     POINTER,
@@ -326,6 +327,10 @@ class PixelFormat(enum.IntEnum):
     HM12 = NV12_16L16
     SUNXI_TILED_NV12 = NV12_32L32
 
+    if TYPE_CHECKING:
+
+        def human_str(self) -> str: ...
+
 
 class MetaFormat(enum.IntEnum):
     VSP1_HGO = v4l2_fourcc("V", "S", "P", "H")  # R-Car VSP1 1-D Histogram
@@ -335,6 +340,10 @@ class MetaFormat(enum.IntEnum):
     VIVID = v4l2_fourcc("V", "I", "V", "D")  # Vivid Metadata
     RK_ISP1_PARAMS = v4l2_fourcc("R", "K", "1", "P")  # Rockchip ISP1 3A Parameters
     RK_ISP1_STAT_3A = v4l2_fourcc("R", "K", "1", "S")  # Rockchip ISP1 3A Statistics
+
+    if TYPE_CHECKING:
+
+        def human_str(self) -> str: ...
 
 
 class TouchFormat(enum.IntEnum):

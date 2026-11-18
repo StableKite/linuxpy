@@ -35,6 +35,7 @@ TEMPLATE = """\
 # Version: {version}
 
 import enum
+from typing import TYPE_CHECKING
 
 from linuxpy.ctypes import (
     POINTER,
@@ -97,13 +98,18 @@ class StandardID(enum.IntFlag):
 {iocs_body}"""
 
 
+class _FourCCEnum(CEnum):
+    def __repr__(self) -> str:
+        return super().__repr__() + "\n    if TYPE_CHECKING:\n\n        def human_str(self) -> str: ...\n"
+
+
 # macros from #define statements
 MACRO_ENUMS = [
     CEnum("SelectionFlag", "V4L2_SEL_FLAG_", "IntFlag"),
     CEnum("SelectionTarget", "V4L2_SEL_TGT_"),
     CEnum("Capability", "V4L2_CAP_", "IntFlag"),
-    CEnum("PixelFormat", "V4L2_PIX_FMT_"),
-    CEnum("MetaFormat", "V4L2_META_FMT_"),
+    _FourCCEnum("PixelFormat", "V4L2_PIX_FMT_"),
+    _FourCCEnum("MetaFormat", "V4L2_META_FMT_"),
     CEnum("TouchFormat", "V4L2_TCH_FMT_"),
     CEnum("SDRFormat", "V4L2_SDR_FMT_"),
     CEnum("BufferFlag", "V4L2_BUF_FLAG_", "IntFlag"),

@@ -9,8 +9,9 @@ import logging
 import os
 import pathlib
 from io import IOBase
+from types import TracebackType
 
-from linuxpy.types import Iterable, Optional, PathLike
+from linuxpy.types import Iterable, Optional, PathLike, Self
 
 from .io import IO
 
@@ -26,22 +27,22 @@ class ReentrantOpen(contextlib.AbstractContextManager):
     def __init__(self):
         self._context_level = 0
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         if not self._context_level:
             self.open()
         self._context_level += 1
         return self
 
-    def __exit__(self, *exc):
+    def __exit__(self, *exc: type[BaseException] | BaseException | TracebackType | None) -> None:
         self._context_level -= 1
         if not self._context_level:
             self.close()
 
-    def open(self):
+    def open(self) -> None:
         """Mandatory override for concrete sub-class"""
         raise NotImplementedError
 
-    def close(self):
+    def close(self) -> None:
         """Mandatory override for concrete sub-class"""
         raise NotImplementedError
 
@@ -118,7 +119,7 @@ class BaseDevice(ReentrantOpen):
         """Create a new Device from the given id"""
         return cls(f"{cls.PREFIX}{did}", **kwargs)
 
-    def open(self):
+    def open(self) -> None:
         """Open the device if not already open. Triggers _on_open after the underlying OS open has succeeded"""
         if not self._fobj:
             self.log.info("opening %s", self.filename)
@@ -126,7 +127,7 @@ class BaseDevice(ReentrantOpen):
             self._on_open()
             self.log.info("opened %s", self.filename)
 
-    def close(self):
+    def close(self) -> None:
         """Closes the device if not already closed. Triggers _on_close before the underlying OS close has succeeded"""
         if not self.closed:
             self._on_close()

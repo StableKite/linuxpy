@@ -105,6 +105,9 @@ readme = {file = ["README.md"], content-type = "text/markdown"}
 [tool.setuptools.packages.find]
 include = ["linuxpy*"]
 
+[tool.setuptools.package-data]
+linuxpy = ["py.typed"]
+
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = [

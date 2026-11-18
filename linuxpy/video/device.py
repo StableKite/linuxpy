@@ -20,7 +20,9 @@ import os
 import select
 import time
 from collections import UserDict
+from io import IOBase
 from pathlib import Path
+from typing import TYPE_CHECKING, NamedTuple, Protocol
 
 from linuxpy.ctypes import cast, cenum, create_string_buffer, memcpy, string_at
 from linuxpy.device import (
@@ -30,7 +32,7 @@ from linuxpy.device import (
 )
 from linuxpy.io import IO
 from linuxpy.ioctl import ioctl
-from linuxpy.types import AsyncIterator, Buffer, Callable, Iterable, Iterator, Optional, PathLike, Self, Union
+from linuxpy.types import AsyncIterator, Buffer, Callable, FDLike, Iterable, Iterator, Optional, PathLike, Self, Union
 from linuxpy.util import astream, bit_indexes, make_find, to_fd
 
 from . import raw
@@ -84,19 +86,32 @@ def V4L2_CTRL_ID2CLASS(id_):
     return id_ & 0x0FFF0000  # unsigned long
 
 
-def human_pixel_format(ifmt: int):
+def human_pixel_format(ifmt: int) -> str:
     return "".join(map(chr, ((ifmt >> i) & 0xFF for i in range(0, 4 * 8, 8))))
 
 
-PixelFormat.human_str = lambda self: human_pixel_format(self.value)
-MetaFormat.human_str = lambda self: human_pixel_format(self.value)
+if not TYPE_CHECKING:
+    PixelFormat.human_str = lambda self: human_pixel_format(self.value)
+    MetaFormat.human_str = lambda self: human_pixel_format(self.value)
 
 
-ImageFormat = collections.namedtuple("ImageFormat", "type description flags pixel_format")
+class ImageFormat(NamedTuple):
+    type: int
+    description: str
+    flags: ImageFormatFlag
+    pixel_format: PixelFormat | MetaFormat
+
 
 MetaFmt = collections.namedtuple("MetaFmt", "format max_buffer_size width height bytes_per_line")
 
-Format = collections.namedtuple("Format", "width height pixel_format size bytes_per_line")
+
+class Format(NamedTuple):
+    width: int
+    height: int
+    pixel_format: int
+    size: int
+    bytes_per_line: int
+
 
 CropCapability = collections.namedtuple("CropCapability", "type bounds defrect pixel_aspect")
 
@@ -104,7 +119,16 @@ Rect = collections.namedtuple("Rect", "left top width height")
 
 Size = collections.namedtuple("Size", "width height")
 
-FrameType = collections.namedtuple("FrameType", "type pixel_format width height min_fps max_fps step_fps")
+
+class FrameType(NamedTuple):
+    type: FrameIntervalType
+    pixel_format: int
+    width: int
+    height: int
+    min_fps: int | fractions.Fraction
+    max_fps: int | fractions.Fraction
+    step_fps: int | fractions.Fraction
+
 
 Input = collections.namedtuple("InputType", "index name type audioset tuner std status capabilities")
 
@@ -202,7 +226,7 @@ def iter_read(fd: int, ioc, indexed_struct, start=0, stop=128, step=1, ignore_ei
                 raise
 
 
-def iter_read_frame_intervals(fd: int, fmt, w, h):
+def iter_read_frame_intervals(fd: FDLike, fmt: int, w: int, h: int) -> Iterator[FrameType]:
     value = raw.v4l2_frmivalenum()
     value.pixel_format = fmt
     value.width = w
@@ -214,6 +238,9 @@ def iter_read_frame_intervals(fd: int, fmt, w, h):
             ftype = FrameIntervalType(val.type)
         except ValueError:
             break
+        min_fps: int | fractions.Fraction
+        max_fps: int | fractions.Fraction
+        step_fps: int | fractions.Fraction
         if ftype == FrameIntervalType.DISCRETE:
             min_fps = max_fps = step_fps = fractions.Fraction(val.discrete.denominator / val.discrete.numerator)
         else:
@@ -265,7 +292,7 @@ def iter_read_frame_sizes(fd: int, pixel_format):
         yield FrameSize(val.index, PixelFormat(val.pixel_format), FrameSizeType(val.type), copy.copy(info))
 
 
-def iter_read_pixel_formats_frame_intervals(fd: int, pixel_formats):
+def iter_read_pixel_formats_frame_intervals(fd: FDLike, pixel_formats: Iterable[int]) -> Iterator[FrameType]:
     for pixel_format in pixel_formats:
         for size in iter_read_frame_sizes(fd, pixel_format):
             if size.type == FrameSizeType.DISCRETE:
@@ -278,7 +305,7 @@ def read_capabilities(fd: int):
     return caps
 
 
-def iter_read_formats(fd: int, type):
+def iter_read_formats(fd: FDLike, type: int) -> Iterator[ImageFormat]:
     format = raw.v4l2_fmtdesc()
     format.type = type
     pixel_formats = set(PixelFormat)
@@ -293,7 +320,7 @@ def iter_read_formats(fd: int, type):
                     pixel_fmt,
                 )
                 continue
-            pixel_format = PixelFormat(pixel_fmt)
+            pixel_format: PixelFormat | MetaFormat = PixelFormat(pixel_fmt)
         elif type in {BufferType.META_CAPTURE, BufferType.META_OUTPUT}:
             if pixel_fmt not in meta_formats:
                 log.warning(
@@ -887,24 +914,36 @@ def enqueue_buffers(fd: int, buffer_type: BufferType, memory: Memory, count: int
     return [enqueue_buffer(fd, buffer_type, memory, 0, index) for index in range(count)]
 
 
+class _DeviceIO(Protocol):
+    def open(self, path: Path, rw: bool, *, blocking: bool) -> object: ...
+
+    @property
+    def os(self) -> object: ...
+
+    @property
+    def select(self) -> object: ...
+
+
 class Device(BaseDevice):
     PREFIX = "/dev/video"
 
-    def __init__(self, name_or_file, read_write=True, io=IO, blocking=False):
-        self.info = None
-        self.controls = None
+    def __init__(
+        self, name_or_file: str | Path | IOBase, read_write: bool = True, io: _DeviceIO = IO, blocking: bool = False
+    ) -> None:
+        self.info: InfoEx | None = None
+        self.controls: Controls | None = None
         super().__init__(name_or_file, read_write=read_write, io=io, blocking=blocking)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator["Frame"]:
         with VideoCapture(self) as stream:
             yield from stream
 
-    async def __aiter__(self):
+    async def __aiter__(self) -> AsyncIterator["Frame"]:
         with VideoCapture(self) as stream:
             async for frame in stream:
                 yield frame
 
-    def _on_open(self):
+    def _on_open(self) -> None:
         self.info = InfoEx(self)
         self.controls = Controls.from_device(self)
 
@@ -1546,7 +1585,7 @@ buffers = {buffers}
         return result
 
     @property
-    def formats(self):
+    def formats(self) -> list[ImageFormat]:
         img_fmt_buffer_types = IMAGE_FORMAT_BUFFER_TYPES & set(self.buffers)
         return [
             image_format
@@ -1570,7 +1609,7 @@ buffers = {buffers}
         return list(iter_read_frame_intervals(self.device, pixel_format, width, height))
 
     @property
-    def frame_types(self):
+    def frame_types(self) -> list[FrameType]:
         pixel_formats = {fmt.pixel_format for fmt in self.formats}
         return list(iter_read_pixel_formats_frame_intervals(self.device, pixel_formats))
 
@@ -1670,7 +1709,7 @@ class Frame:
 
     __slots__ = ["format", "buff", "data", "user_data"]
 
-    def __init__(self, data: bytes, buff: raw.v4l2_buffer, format: Format):
+    def __init__(self, data: bytes | memoryview, buff: raw.v4l2_buffer, format: Format) -> None:
         self.format = format
         self.buff = buff
         self.data = data
@@ -1703,57 +1742,57 @@ class Frame:
         return str(getattr(self, spec))
 
     @property
-    def width(self):
+    def width(self) -> int:
         return self.format.width
 
     @property
-    def height(self):
+    def height(self) -> int:
         return self.format.height
 
     @property
-    def nbytes(self):
+    def nbytes(self) -> int:
         return self.buff.bytesused
 
     @property
-    def pixel_format(self):
+    def pixel_format(self) -> PixelFormat:
         return PixelFormat(self.format.pixel_format)
 
     @property
-    def index(self):
+    def index(self) -> int:
         return self.buff.index
 
     @property
-    def type(self):
+    def type(self) -> BufferType:
         return BufferType(self.buff.type)
 
     @property
-    def flags(self):
+    def flags(self) -> BufferFlag:
         return BufferFlag(self.buff.flags)
 
     @property
-    def timestamp(self):
+    def timestamp(self) -> float:
         return self.buff.timestamp.secs + self.buff.timestamp.usecs * 1e-6
 
     @property
-    def frame_nb(self):
+    def frame_nb(self) -> int:
         return self.buff.sequence
 
     @property
-    def memory(self):
+    def memory(self) -> Memory:
         return Memory(self.buff.memory)
 
     @property
-    def time_type(self):
+    def time_type(self) -> TimeCodeType | None:
         if BufferFlag.TIMECODE in self.flags:
             return TimeCodeType(self.buff.timecode.type)
 
     @property
-    def time_flags(self):
+    def time_flags(self) -> TimeCodeFlag | None:
         if BufferFlag.TIMECODE in self.flags:
             return TimeCodeFlag(self.buff.timecode.flags)
 
     @property
-    def time_frame(self):
+    def time_frame(self) -> int | None:
         if BufferFlag.TIMECODE in self.flags:
             return self.buff.timecode.frames
 
